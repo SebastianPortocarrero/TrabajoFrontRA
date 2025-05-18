@@ -54,8 +54,8 @@ const LandingPage = () => {
               <div className="bg-primary-100 p-4 rounded-full mb-6">
                 <BookOpen className="h-8 w-8 text-primary-600" />
               </div>
-              <h3 className="text-xl font-semibold mb-3">Sube Marcadores</h3>
-              <p className="text-gray-600">Sube imágenes que servirán como marcadores para tu contenido RA. Estas imágenes activan la experiencia RA.</p>
+              <h3 className="text-xl font-semibold mb-3">Añade Contenido</h3>
+              <p className="text-gray-600">Agrega texto, imágenes, videos y más a tus clases. Crea experiencias educativas completas.</p>
             </div>
             
             <div className="flex flex-col items-center text-center p-6 rounded-xl transition-all duration-300 hover:shadow-lg">
@@ -71,7 +71,7 @@ const LandingPage = () => {
                 <Users className="h-8 w-8 text-primary-600" />
               </div>
               <h3 className="text-xl font-semibold mb-3">Involucra Estudiantes</h3>
-              <p className="text-gray-600">Ofrece experiencias de aprendizaje interactivas que aumentan el compromiso y mejoran la retención del conocimiento.</p>
+              <p className="text-gray-600">Ofrece experiencias de aprendizaje interactivas que aumentan el compromiso y mejoran la retención.</p>
             </div>
           </div>
         </div>

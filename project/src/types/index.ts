@@ -11,10 +11,10 @@ export interface ARClass {
 export interface MarkerObject {
   id: string;
   markerImage: string;
-  content: ARContent;
+  content: ARContent[];
 }
 
-export type ContentType = 'url' | 'video' | 'image' | 'text';
+export type ContentType = 'url' | 'video' | 'image' | 'text' | 'audio';
 
 export interface ARContent {
   type: ContentType;
