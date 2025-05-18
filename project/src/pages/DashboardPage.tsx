@@ -14,12 +14,12 @@ const DashboardPage = () => {
         <div className="max-w-4xl mx-auto">
           <div className="bg-white shadow-md rounded-lg overflow-hidden">
             <div className="bg-gradient-to-r from-primary-600 to-primary-800 px-6 py-8 text-white">
-              <h1 className="text-2xl md:text-3xl font-bold">Welcome to AREduca, {user?.name}!</h1>
-              <p className="mt-2 opacity-90">Your AR education journey starts here.</p>
+              <h1 className="text-2xl md:text-3xl font-bold">Bienvenido a AREduca, {user?.name}!</h1>
+              <p className="mt-2 opacity-90">Tu viaje de educación AR comienza aquí.</p>
             </div>
             
             <div className="p-6">
-              <h2 className="text-xl font-semibold mb-6">Getting Started with AR Classes</h2>
+              <h2 className="text-xl font-semibold mb-6">Comenzando con las clases AR</h2>
               
               <div className="space-y-6">
                 <div className="flex items-start">
@@ -27,9 +27,9 @@ const DashboardPage = () => {
                     <BookOpen className="h-6 w-6 text-primary-600" />
                   </div>
                   <div className="ml-4">
-                    <h3 className="text-lg font-medium">1. Create a new AR class</h3>
+                    <h3 className="text-lg font-medium">1. Crear una nueva clase AR</h3>
                     <p className="mt-1 text-gray-600">
-                      Start by creating a new AR class. Give it a name and description that helps students understand the content.
+                      Comienza creando una nueva clase AR. Dale un nombre y una descripción que ayude a los estudiantes a entender el contenido.
                     </p>
                   </div>
                 </div>
@@ -39,9 +39,9 @@ const DashboardPage = () => {
                     <Upload className="h-6 w-6 text-primary-600" />
                   </div>
                   <div className="ml-4">
-                    <h3 className="text-lg font-medium">2. Upload marker images</h3>
+                    <h3 className="text-lg font-medium">2. Subir imágenes de marcadores</h3>
                     <p className="mt-1 text-gray-600">
-                      Upload images that will serve as AR markers. These are the images students will scan to see your AR content.
+                      Sube imágenes que servirán como marcadores AR. Estas son las imágenes que los estudiantes escanearán para ver tu contenido AR.
                     </p>
                   </div>
                 </div>
@@ -51,9 +51,9 @@ const DashboardPage = () => {
                     <LinkIcon className="h-6 w-6 text-primary-600" />
                   </div>
                   <div className="ml-4">
-                    <h3 className="text-lg font-medium">3. Add content to your markers</h3>
+                    <h3 className="text-lg font-medium">3. Añadir contenido a tus marcadores</h3>
                     <p className="mt-1 text-gray-600">
-                      Link each marker to content like videos, images, text or websites that will be displayed when scanned.
+                      Enlaza cada marcador con contenido como videos, imágenes, texto o sitios web que se mostrarán cuando se escaneen.
                     </p>
                   </div>
                 </div>
@@ -63,9 +63,9 @@ const DashboardPage = () => {
                     <QrCode className="h-6 w-6 text-primary-600" />
                   </div>
                   <div className="ml-4">
-                    <h3 className="text-lg font-medium">4. Generate and share QR codes</h3>
+                    <h3 className="text-lg font-medium">4. Generar y compartir códigos QR</h3>
                     <p className="mt-1 text-gray-600">
-                      Generate a QR code for your class that students can scan to access your AR experience.
+                      Genera un código QR para tu clase que los estudiantes puedan escanear para acceder a tu experiencia AR.
                     </p>
                   </div>
                 </div>
@@ -76,7 +76,7 @@ const DashboardPage = () => {
                   to="/my-classes"
                   className="w-full sm:w-auto btn-primary py-3 px-6"
                 >
-                  Go to My Classes
+                  Ir a Mis Clases
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
                 
@@ -84,7 +84,7 @@ const DashboardPage = () => {
                   to="/editor"
                   className="w-full sm:w-auto btn-secondary py-3 px-6"
                 >
-                  Create New Class
+                    Crear Nueva
                 </Link>
               </div>
             </div>
@@ -92,7 +92,7 @@ const DashboardPage = () => {
           
           {userClasses.length > 0 && (
             <div className="mt-8">
-              <h2 className="text-xl font-semibold mb-4">Your Recent Classes</h2>
+              <h2 className="text-xl font-semibold mb-4">Tus Clases Recientes</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {userClasses.slice(0, 3).map((arClass) => (
                   <Link 

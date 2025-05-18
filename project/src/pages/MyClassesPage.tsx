@@ -51,8 +51,8 @@ const MyClassesPage = () => {
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My AR Classes</h1>
-              <p className="text-gray-600 mt-1">Manage all your augmented reality educational content</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Mis Clases AR</h1>
+              <p className="text-gray-600 mt-1">Gestiona todo tu contenido educativo de realidad aumentada</p>
             </div>
             
             <Link 
@@ -60,7 +60,7 @@ const MyClassesPage = () => {
               className="btn-primary flex items-center"
             >
               <Plus className="mr-2 h-5 w-5" />
-              Create New Class
+              Crear Nueva Clase
             </Link>
           </div>
           
@@ -71,7 +71,7 @@ const MyClassesPage = () => {
               </div>
               <input
                 type="text"
-                placeholder="Search your classes..."
+                placeholder="Buscar tus clases..."
                 className="form-input pl-10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -86,28 +86,28 @@ const MyClassesPage = () => {
                   <SearchIcon className="mx-auto h-12 w-12 text-gray-400" />
                   <h3 className="mt-4 text-lg font-medium text-gray-900">No classes found</h3>
                   <p className="mt-2 text-gray-600">
-                    We couldn't find any classes matching "{searchTerm}". Please try another search term.
+                    No encontramos ninguna clase que coincida con "{searchTerm}". Por favor, intenta con otro término de búsqueda.
                   </p>
                   <button 
                     className="mt-4 btn-secondary"
                     onClick={() => setSearchTerm('')}
                   >
-                    Clear search
+                    Limpiar búsqueda
                   </button>
                 </div>
               ) : (
                 <div>
                   <BookOpen className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-4 text-lg font-medium text-gray-900">No classes yet</h3>
+                  <h3 className="mt-4 text-lg font-medium text-gray-900">No hay clases aún</h3>
                   <p className="mt-2 text-gray-600">
-                    You haven't created any AR classes yet. Get started by creating your first class.
+                    Aún no has creado ninguna clase AR. Comienza creando tu primera clase.
                   </p>
                   <Link 
                     to="/editor" 
                     className="mt-4 btn-primary inline-flex items-center"
                   >
                     <Plus className="mr-2 h-5 w-5" />
-                    Create Your First Class
+                    Crear tu primera clase
                   </Link>
                 </div>
               )}
@@ -179,7 +179,7 @@ const MyClassesPage = () => {
                 <div className="bg-gray-100 rounded-full p-4">
                   <Plus className="h-8 w-8" />
                 </div>
-                <span className="mt-4 font-medium">Create New Class</span>
+                <span className="mt-4 font-medium">Crear Nueva Clase</span>
               </Link>
             </div>
           )}
@@ -192,23 +192,23 @@ const MyClassesPage = () => {
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 animate-scale-in">
             <div className="flex items-center text-error-600 mb-4">
               <AlertTriangle className="h-6 w-6 mr-2" />
-              <h3 className="text-lg font-semibold">Delete AR Class</h3>
+              <h3 className="text-lg font-semibold">Eliminar Clase AR</h3>
             </div>
             <p className="text-gray-600 mb-6">
-              Are you sure you want to delete this AR class? This action cannot be undone, and all associated content will be permanently lost.
+              ¿Estás seguro de querer eliminar esta clase AR? Esta acción no se puede deshacer y todo el contenido asociado se perderá permanentemente.
             </p>
             <div className="flex justify-end space-x-3">
               <button 
                 className="btn-secondary"
                 onClick={() => setShowDeleteModal(false)}
               >
-                Cancel
+                Cancelar
               </button>
               <button 
                 className="btn bg-error-600 text-white hover:bg-error-700"
                 onClick={confirmDelete}
               >
-                Delete
+                Eliminar
               </button>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { 
@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getClassById, saveClass } from '../utils/storage';
-import { ARClass, MarkerObject, ContentType, ARContent } from '../types';
+import { ARClass, MarkerObject, ARStep, ARContent, ContentType, ButtonAction } from '../types';
 import FloatingSubmitButton from '../components/FloatingSubmitButton';
 import QRCodeModal from '../components/QRCodeModal';
 
@@ -17,35 +17,56 @@ interface FormData {
   description: string;
 }
 
-const defaultMarkerObject: MarkerObject = {
-  id: `marker_${Date.now()}`,
-  markerImage: '',
-  content: [],
+const defaultContent = (type: ContentType): Omit<ARContent, 'id'> => ({
+  type: type,
+  value: '',
+  title: '',
+  // action and actionValue will be added if type is button
+});
+
+const defaultStep: Omit<ARStep, 'id'> = {
+  contents: [], 
 };
 
-type Step = 'type-selection' | 'content-creation' | 'preview';
+const defaultMarkerObject: Omit<MarkerObject, 'id'> = {
+  markerImage: '',
+  steps: [{ id: `step_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, contents: [] }],
+};
+
+// Define el tipo para el estado de la página de edición (para manejar la navegación entre secciones)
+// Type for the editing page step (used to manage navigation between sections)
+type EditorStep = 'class-details' | 'marker-list' | 'marker-editor' | 'step-editor';
 
 const ClassEditorPage = () => {
   const { classId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   
-  const [currentStep, setCurrentStep] = useState<Step>('type-selection');
-  const [selectedTypes, setSelectedTypes] = useState<ContentType[]>([]);
+  const [currentEditorStep, setCurrentEditorStep] = useState<EditorStep>('class-details');
+  // const [selectedTypes, setSelectedTypes] = useState<ContentType[]>([]); // Eliminado, se maneja por paso
   const [isLoading, setIsLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [activeMarkerIndex, setActiveMarkerIndex] = useState(0);
+  const [activeStepIndex, setActiveStepIndex] = useState(0); // Nuevo estado para el paso activo
   const [error, setError] = useState('');
   
-  const [arClass, setArClass] = useState<ARClass>({
-    id: classId || `class_${Date.now()}`,
-    title: '',
-    description: '',
-    thumbnail: '',
-    markerObjects: [{ ...defaultMarkerObject }],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+  const [arClass, setArClass] = useState<ARClass>(() => {
+    const newClassId = classId || `class_${Date.now()}`;
+    const initialUserId = user?.id || '';
+    return {
+      id: newClassId,
+      title: '',
+      description: '',
+      thumbnail: '',
+      markerObjects: [{ 
+        id: `marker_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        ...defaultMarkerObject 
+      }],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      userId: initialUserId,
+    };
   });
   
   const { 
@@ -56,576 +77,563 @@ const ClassEditorPage = () => {
   } = useForm<FormData>();
   
   useEffect(() => {
+    if (user && !arClass.userId) {
+      setArClass(prev => ({ ...prev, userId: user.id }));
+    }
     if (classId) {
       const existingClass = getClassById(classId);
       if (existingClass) {
-        setArClass(existingClass);
+        setArClass({
+          ...existingClass,
+          userId: existingClass.userId || user?.id || '',
+          markerObjects: existingClass.markerObjects.map((mo: MarkerObject) => ({
+            ...mo,
+            steps: (mo.steps && mo.steps.length > 0) 
+              ? mo.steps.map((st: ARStep) => ({
+                  ...st,
+                  contents: st.contents || [],
+                })) 
+              : [{ id: `step_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, ...defaultStep }],
+          })),
+        });
         setValue('title', existingClass.title);
         setValue('description', existingClass.description);
-        setCurrentStep('content-creation');
-        // Extract unique content types from existing class
-        const types = Array.from(new Set(
-          existingClass.markerObjects.flatMap(marker => 
-            marker.content.map(c => c.type)
-          )
-        ));
-        setSelectedTypes(types as ContentType[]);
+        setCurrentEditorStep('marker-list'); 
       } else {
-        navigate('/editor');
+        navigate('/editor'); // O a una página de error/nueva clase
       }
-    }
-  }, [classId, navigate, setValue]);
+    } 
+  }, [classId, navigate, setValue, user, arClass.userId]);
 
-  const contentTypes = [
-    { type: 'text', icon: FileText, label: 'Texto', description: 'Añade contenido textual a tu clase' },
-    { type: 'image', icon: Image, label: 'Imagen', description: 'Incluye imágenes y fotografías' },
-    { type: 'video', icon: Video, label: 'Video', description: 'Integra videos educativos' },
-    { type: 'url', icon: LinkIcon, label: 'Enlace', description: 'Vincula a recursos externos' },
-    { type: 'audio', icon: Music, label: 'Audio', description: 'Agrega contenido de audio' },
-  ] as const;
+  // UI Content Types (para la selección en la UI, si se necesita)
+  const contentTypesMeta = [
+    { type: 'text' as ContentType, icon: FileText, label: 'Texto', description: 'Añade contenido textual.' },
+    { type: 'image' as ContentType, icon: Image, label: 'Imagen', description: 'Incluye imágenes.' },
+    { type: 'video' as ContentType, icon: Video, label: 'Video', description: 'Integra videos.' },
+    { type: 'url' as ContentType, icon: LinkIcon, label: 'Enlace', description: 'Vincula a recursos externos.' },
+    { type: 'audio' as ContentType, icon: Music, label: 'Audio', description: 'Agrega clips de audio.' },
+    { type: 'button' as ContentType, icon: ArrowRight, label: 'Botón', description: 'Añade un botón interactivo.' },
+  ];
 
-  const toggleContentType = (type: ContentType) => {
-    setSelectedTypes(prev => {
-      if (prev.includes(type)) {
-        return prev.filter(t => t !== type);
-      }
-      return [...prev, type];
-    });
-  };
-
-  const handleContinue = () => {
-    if (selectedTypes.length === 0) {
-      setError('Por favor, selecciona al menos un tipo de contenido');
-      return;
-    }
-
-    // Initialize marker with empty content for each selected type
-    const initialContent = selectedTypes.map(type => ({
-      type,
-      value: '',
-    }));
-
-    setArClass(prev => ({
-      ...prev,
-      markerObjects: [{
-        ...defaultMarkerObject,
-        content: initialContent,
-      }],
-    }));
-
-    setCurrentStep('content-creation');
-    setError('');
-  };
-
-  const handleBack = () => {
-    if (currentStep === 'content-creation') {
-      setCurrentStep('type-selection');
-    } else if (currentStep === 'preview') {
-      setCurrentStep('content-creation');
-    }
-  };
-  
+  // ----- Funciones para Marcadores -----
   const addMarkerObject = () => {
-    const initialContent = selectedTypes.map(type => ({
-      type,
-      value: '',
-    }));
-
     setArClass(prev => ({
       ...prev,
       markerObjects: [
         ...prev.markerObjects,
         { 
-          ...defaultMarkerObject, 
-          id: `marker_${Date.now()}`,
-          content: initialContent,
+          id: `marker_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          ...defaultMarkerObject
         },
       ],
     }));
-    
     setActiveMarkerIndex(arClass.markerObjects.length);
+    setActiveStepIndex(0); 
+    setCurrentEditorStep('marker-editor');
   };
   
   const removeMarkerObject = (index: number) => {
-    if (arClass.markerObjects.length <= 1) return;
-    
-    setArClass(prev => ({
-      ...prev,
-      markerObjects: prev.markerObjects.filter((_, i) => i !== index),
-    }));
-    
-    if (activeMarkerIndex >= index && activeMarkerIndex > 0) {
-      setActiveMarkerIndex(activeMarkerIndex - 1);
+    if (arClass.markerObjects.length <= 1 && index === 0) {
+        setError("No se puede eliminar el único marcador.");
+        return;
     }
-  };
-  
-  const duplicateMarkerObject = (index: number) => {
-    const markerToDuplicate = { 
-      ...arClass.markerObjects[index],
-      id: `marker_${Date.now()}`
-    };
-    
-    const newMarkers = [...arClass.markerObjects];
-    newMarkers.splice(index + 1, 0, markerToDuplicate);
-    
+    const newMarkers = arClass.markerObjects.filter((_, i) => i !== index);
     setArClass(prev => ({
       ...prev,
       markerObjects: newMarkers,
     }));
-    
-    setActiveMarkerIndex(index + 1);
-  };
-  
-  const handleMarkerImageChange = (index: number, imageDataUrl: string) => {
-    const updatedMarkers = [...arClass.markerObjects];
-    updatedMarkers[index] = {
-      ...updatedMarkers[index],
-      markerImage: imageDataUrl,
-    };
-    
-    setArClass(prev => ({
-      ...prev,
-      markerObjects: updatedMarkers,
-    }));
-    
-    if (index === 0 && !arClass.thumbnail) {
-      setArClass(prev => ({
-        ...prev,
-        thumbnail: imageDataUrl,
-      }));
+
+    if (activeMarkerIndex >= index && activeMarkerIndex > 0) {
+      setActiveMarkerIndex(prevActive => prevActive - 1);
+    } else if (newMarkers.length > 0 && activeMarkerIndex >= newMarkers.length) {
+      setActiveMarkerIndex(newMarkers.length - 1);
+    }
+
+    if (newMarkers.length === 0) {
+        setCurrentEditorStep('class-details') 
+    } else if (activeMarkerIndex >= newMarkers.length ){
+        setActiveMarkerIndex(newMarkers.length -1)
     }
   };
-  
-  const handleContentValueChange = (markerIndex: number, contentIndex: number, value: string) => {
-    const updatedMarkers = [...arClass.markerObjects];
-    const updatedContent = [...updatedMarkers[markerIndex].content];
-    updatedContent[contentIndex] = {
-      ...updatedContent[contentIndex],
-      value,
-    };
     
-    updatedMarkers[markerIndex] = {
-      ...updatedMarkers[markerIndex],
-      content: updatedContent,
-    };
-    
-    setArClass(prev => ({
-      ...prev,
-      markerObjects: updatedMarkers,
-    }));
-  };
-  
-  const handleContentTitleChange = (markerIndex: number, contentIndex: number, title: string) => {
-    const updatedMarkers = [...arClass.markerObjects];
-    const updatedContent = [...updatedMarkers[markerIndex].content];
-    updatedContent[contentIndex] = {
-      ...updatedContent[contentIndex],
-      title,
-    };
-    
-    updatedMarkers[markerIndex] = {
-      ...updatedMarkers[markerIndex],
-      content: updatedContent,
-    };
-    
-    setArClass(prev => ({
-      ...prev,
-      markerObjects: updatedMarkers,
-    }));
-  };
-  
-  const handleImageUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    if (file.size > 5 * 1024 * 1024) {
-      setError('La imagen es demasiado grande. El tamaño máximo es 5MB.');
-      return;
-    }
-    
-    if (!file.type.startsWith('image/')) {
-      setError('Tipo de archivo inválido. Por favor, sube una imagen.');
-      return;
-    }
-    
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        handleMarkerImageChange(index, event.target.result as string);
-        setError('');
+  const handleMarkerImageChange = (markerIdx: number, imageDataUrl: string) => {
+    setArClass(prev => {
+      const updatedMarkers = [...prev.markerObjects];
+      updatedMarkers[markerIdx] = {
+        ...updatedMarkers[markerIdx],
+        markerImage: imageDataUrl,
+      };
+      // Si es el primer marcador y no hay thumbnail, usar esta imagen
+      if (markerIdx === 0 && !prev.thumbnail) {
+        return {
+          ...prev,
+          markerObjects: updatedMarkers,
+          thumbnail: imageDataUrl,
+        };
       }
-    };
-    reader.readAsDataURL(file);
+      return {
+        ...prev,
+        markerObjects: updatedMarkers,
+      };
+    });
+  };
+
+  const handleImageUpload = (markerIdx: number, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        handleMarkerImageChange(markerIdx, reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // ----- Funciones para Pasos (Steps) -----
+  const addStepToMarker = (markerIdx: number) => {
+    setArClass(prev => {
+      const updatedMarkers = [...prev.markerObjects];
+      const newStep: ARStep = {
+        id: `step_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        contents: [],
+      };
+      updatedMarkers[markerIdx] = {
+        ...updatedMarkers[markerIdx],
+        steps: [...updatedMarkers[markerIdx].steps, newStep],
+      };
+      return { ...prev, markerObjects: updatedMarkers };
+    });
+    setActiveStepIndex(arClass.markerObjects[markerIdx].steps.length);
+  };
+
+  const removeStepFromMarker = (markerIdx: number, stepIdx: number) => {
+    if (arClass.markerObjects[markerIdx].steps.length <= 1 && stepIdx === 0) {
+        setError("No se puede eliminar el único paso de un marcador.");
+        return;
+    }
+    const currentMarker = arClass.markerObjects[markerIdx];
+    const newSteps = currentMarker.steps.filter((_: ARStep, i: number) => i !== stepIdx);
+
+    setArClass(prev => {
+      const updatedMarkers = [...prev.markerObjects];
+      updatedMarkers[markerIdx] = {
+        ...updatedMarkers[markerIdx],
+        steps: newSteps,
+      };
+      return { ...prev, markerObjects: updatedMarkers };
+    });
+
+    if (activeStepIndex >= stepIdx && activeStepIndex > 0) {
+      setActiveStepIndex(prevActive => prevActive - 1);
+    } else if (newSteps.length > 0 && activeStepIndex >= newSteps.length) {
+        setActiveStepIndex(newSteps.length -1);
+    }
+
+    if (newSteps.length === 0){
+        // Handled by potentially setting activeStepIndex to 0 or navigating
+        // No specific navigation here, relies on activeStepIndex update
+    } else if (activeStepIndex >= newSteps.length ) {
+        setActiveStepIndex(newSteps.length -1)
+    }
+  };
+
+  // ----- Funciones para Contenido (ARContent) dentro de un Paso -----
+  const addContentToStep = (markerIdx: number, stepIdx: number, type: ContentType) => {
+    setArClass(prev => {
+      const updatedMarkers = [...prev.markerObjects];
+      const updatedSteps = [...updatedMarkers[markerIdx].steps];
+      const newContent: ARContent = {
+        id: `content_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: type,
+        value: '',
+        ...(type === 'button' ? { action: 'nextStep', actionValue: '' } : {}) // Default for button
+      };
+      updatedSteps[stepIdx] = {
+        ...updatedSteps[stepIdx],
+        contents: [...updatedSteps[stepIdx].contents, newContent],
+      };
+      updatedMarkers[markerIdx] = { ...updatedMarkers[markerIdx], steps: updatedSteps };
+      return { ...prev, markerObjects: updatedMarkers };
+    });
+  };
+
+  const updateContentInStep = (markerIdx: number, stepIdx: number, contentIdx: number, newContent: Partial<ARContent>) => {
+    setArClass(prev => {
+      const updatedMarkers = [...prev.markerObjects];
+      const updatedSteps = [...updatedMarkers[markerIdx].steps];
+      const updatedContents = [...updatedSteps[stepIdx].contents];
+      updatedContents[contentIdx] = { ...updatedContents[contentIdx], ...newContent };
+      updatedSteps[stepIdx] = { ...updatedSteps[stepIdx], contents: updatedContents };
+      updatedMarkers[markerIdx] = { ...updatedMarkers[markerIdx], steps: updatedSteps };
+      return { ...prev, markerObjects: updatedMarkers };
+    });
+  };
+
+  const removeContentFromStep = (markerIdx: number, stepIdx: number, contentIdx: number) => {
+    setArClass(prev => {
+      const updatedMarkers = [...prev.markerObjects];
+      const updatedSteps = [...updatedMarkers[markerIdx].steps];
+      updatedSteps[stepIdx] = {
+        ...updatedSteps[stepIdx],
+        contents: updatedSteps[stepIdx].contents.filter((_: ARContent, i: number) => i !== contentIdx),
+      };
+      updatedMarkers[markerIdx] = { ...updatedMarkers[markerIdx], steps: updatedSteps };
+      return { ...prev, markerObjects: updatedMarkers };
+    });
   };
   
+  // ----- Submit ----- 
   const onSubmit = (data: FormData) => {
     setError('');
-    
-    const hasMarkerImage = arClass.markerObjects.some(marker => marker.markerImage);
-    if (!hasMarkerImage) {
-      setError('Al menos un marcador debe tener una imagen.');
+    if (!arClass.markerObjects.some(marker => marker.markerImage)) {
+      setError('Al menos un marcador debe tener una imagen asignada.');
       return;
     }
-    
-    const invalidMarker = arClass.markerObjects.findIndex(marker => 
-      marker.markerImage && marker.content.every(c => !c.value)
-    );
-    
-    if (invalidMarker !== -1) {
-      setError(`El marcador ${invalidMarker + 1} tiene una imagen pero no contenido. Por favor, añade contenido o elimina el marcador.`);
-      setActiveMarkerIndex(invalidMarker);
+    if (arClass.markerObjects.some(marker => marker.markerImage && marker.steps.every((step: ARStep) => step.contents.length === 0))) {
+      setError('Todos los marcadores con imagen deben tener al menos un contenido en al menos un paso.');
       return;
     }
-    
+    // Validación más específica: cada contenido debe tener un value si no es botón (o una lógica similar)
+    for (const marker of arClass.markerObjects) {
+      if (marker.markerImage) {
+        for (const step of marker.steps) {
+          for (const content of step.contents) {
+            if (!content.value && content.type !== 'button') { // Botones pueden no tener 'value' si su texto es fijo
+              setError(`Contenido tipo '${content.type}' en el marcador '${marker.id}', paso '${step.id}' necesita un valor.`);
+              // Aquí podrías navegar al marcador/paso/contenido específico
+              return;
+            }
+          }
+        }
+      }
+    }
+
     setIsLoading(true);
-    
     try {
-      if (!user) {
-        throw new Error('Usuario no autenticado');
+      if (!user || !arClass.userId) {
+        throw new Error('Usuario no autenticado o ID de usuario faltante.');
       }
       
-      const updatedClass: ARClass = {
+      const classToSave: ARClass = {
         ...arClass,
         title: data.title,
         description: data.description,
         updatedAt: Date.now(),
+        // Filtrar marcadores sin imagen física (opcional, pero buena práctica)
         markerObjects: arClass.markerObjects.filter(marker => marker.markerImage),
       };
       
-      saveClass(user.id, updatedClass);
-      setArClass(updatedClass);
+      saveClass(user.id, classToSave);
+      setArClass(classToSave); // Actualizar estado local con la clase guardada (incluyendo IDs generados si es el caso)
       setSaveSuccess(true);
       
       setTimeout(() => {
         setSaveSuccess(false);
         setShowQRModal(true);
       }, 2000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error al guardar la clase:', err);
-      setError('Error al guardar la clase. Por favor, intenta de nuevo.');
+      setError(err.message || 'Error al guardar la clase. Por favor, intenta de nuevo.');
     } finally {
       setIsLoading(false);
     }
   };
   
-  const activeMarker = arClass.markerObjects[activeMarkerIndex];
-  
-  const renderTypeSelection = () => (
-    <div className="max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6">Selecciona los tipos de contenido</h2>
-      <p className="text-gray-600 mb-8">Puedes seleccionar múltiples tipos de contenido para tu clase AR</p>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {contentTypes.map(({ type, icon: Icon, label, description }) => (
-          <button
-            key={type}
-            onClick={() => toggleContentType(type as ContentType)}
-            className={`p-6 rounded-xl transition-all relative ${
-              selectedTypes.includes(type as ContentType)
-                ? 'bg-primary-50 border-2 border-primary-500 shadow-md'
-                : 'bg-white border-2 border-transparent shadow hover:shadow-lg'
-            }`}
-          >
-            {selectedTypes.includes(type as ContentType) && (
-              <div className="absolute top-2 right-2 bg-primary-500 text-white p-1 rounded-full">
-                <Check className="h-4 w-4" />
-              </div>
-            )}
-            <div className="flex items-center mb-4">
-              <div className={`p-3 rounded-lg ${
-                selectedTypes.includes(type as ContentType)
-                  ? 'bg-primary-100'
-                  : 'bg-gray-100'
-              }`}>
-                <Icon className={`h-6 w-6 ${
-                  selectedTypes.includes(type as ContentType)
-                    ? 'text-primary-600'
-                    : 'text-gray-600'
-                }`} />
-              </div>
-              <h3 className="text-lg font-semibold ml-4">{label}</h3>
-            </div>
-            <p className="text-gray-600">{description}</p>
-          </button>
-        ))}
-      </div>
-      
+  // ----- Renderizado condicional de secciones del editor -----
+  const activeMarker = activeMarkerIndex < arClass.markerObjects.length ? arClass.markerObjects[activeMarkerIndex] : null;
+  const activeStep = activeMarker && activeStepIndex < activeMarker.steps.length ? activeMarker.steps[activeStepIndex] : null;
+
+  // Renderizado de los detalles de la clase (título, descripción)
+  const renderClassDetailsForm = () => (
+    <div className="max-w-4xl mx-auto bg-white shadow-md rounded-lg p-6 mb-8">
+      <h2 className="text-xl font-bold mb-6">Detalles de la Clase RA</h2>
       {error && (
-        <div className="mt-6 bg-error-50 border border-error-200 text-error-700 px-4 py-3 rounded flex items-start">
+        <div className="mb-6 bg-error-50 border border-error-200 text-error-700 px-4 py-3 rounded flex items-start">
           <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
           <p>{error}</p>
         </div>
       )}
-      
-      <div className="mt-8 flex justify-end">
-        <button
-          type="button"
-          onClick={handleContinue}
-          className="btn-primary py-2 px-6"
-        >
-          Continuar
-          <ArrowRight className="ml-2 h-5 w-5" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div>
+          <label htmlFor="title" className="form-label">Título de la Clase</label>
+          <input id="title" type="text" {...register('title', { required: 'El título es requerido' })} className="form-input" />
+          {errors.title && <p className="mt-1 text-sm text-error-600">{errors.title.message}</p>}
+        </div>
+        <div>
+          <label htmlFor="description" className="form-label">Descripción</label>
+          <textarea id="description" rows={3} {...register('description', { required: 'La descripción es requerida' })} className="form-input" />
+          {errors.description && <p className="mt-1 text-sm text-error-600">{errors.description.message}</p>}
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <button type="button" onClick={() => { setCurrentEditorStep('marker-list'); setError(''); }} className="btn-primary">
+          Siguiente: Marcadores <ArrowRight className="ml-2 h-4 w-4" />
         </button>
       </div>
     </div>
   );
 
-  const renderContentCreation = () => (
-    <div className="max-w-6xl mx-auto">
-      <div className="bg-white shadow-md rounded-lg overflow-hidden mb-6">
-        <div className="p-6">
-          <h1 className="text-2xl font-bold mb-6">
-            {classId ? 'Editar Clase RA' : 'Crear Clase RA'}
-          </h1>
-          
-          {error && (
-            <div className="mb-6 bg-error-50 border border-error-200 text-error-700 px-4 py-3 rounded flex items-start">
-              <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
-              <p>{error}</p>
-            </div>
-          )}
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="title" className="form-label">
-                Título de la Clase
-              </label>
-              <input
-                id="title"
-                type="text"
-                className={`form-input ${errors.title ? 'border-error-500 focus:ring-error-500' : ''}`}
-                placeholder="Ej: Modelos 3D del Sistema Solar"
-                {...register('title', { 
-                  required: 'El título es requerido',
-                  minLength: {
-                    value: 3,
-                    message: 'El título debe tener al menos 3 caracteres'
-                  }
-                })}
-              />
-              {errors.title && (
-                <p className="mt-1 text-sm text-error-600">{errors.title.message}</p>
-              )}
-            </div>
-            
-            <div>
-              <label htmlFor="description" className="form-label">
-                Descripción
-              </label>
-              <textarea
-                id="description"
-                rows={3}
-                className={`form-input ${errors.description ? 'border-error-500 focus:ring-error-500' : ''}`}
-                placeholder="Describe tu clase RA"
-                {...register('description', { 
-                  required: 'La descripción es requerida',
-                  minLength: {
-                    value: 10,
-                    message: 'La descripción debe tener al menos 10 caracteres'
-                  }
-                })}
-              />
-              {errors.description && (
-                <p className="mt-1 text-sm text-error-600">{errors.description.message}</p>
-              )}
-            </div>
-          </div>
+  // Renderizado de la lista de marcadores
+  const renderMarkerList = () => (
+    <div className="max-w-6xl mx-auto bg-white shadow-md rounded-lg p-6 mb-8">
+      <h2 className="text-xl font-bold mb-6">Marcadores de la Clase</h2>
+      <p className="text-gray-600 mb-4">Añade y gestiona las imágenes que activarán tu contenido RA.</p>
+      {error && (
+        <div className="mb-6 bg-error-50 border border-error-200 text-error-700 px-4 py-3 rounded flex items-start">
+          <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+          <p>{error}</p>
         </div>
-      </div>
-      
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        <div className="border-b border-gray-200">
-          <div className="px-6 py-4 flex flex-wrap items-center">
-            <h2 className="text-lg font-semibold mr-4">Marcadores</h2>
-            <span className="text-sm text-gray-500">
-              Añade imágenes que activarán el contenido RA al ser escaneadas
-            </span>
-            <button
-              type="button"
-              onClick={addMarkerObject}
-              className="ml-auto btn-secondary flex items-center text-sm"
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Añadir Marcador
-            </button>
-          </div>
-          
-          <div className="flex overflow-x-auto pb-1 px-2 pt-2">
-            {arClass.markerObjects.map((marker, index) => (
-              <button
-                key={marker.id}
-                type="button"
-                className={`flex-shrink-0 px-4 py-2 text-sm font-medium rounded-t-lg mr-1 ${
-                  activeMarkerIndex === index
-                    ? 'bg-primary-50 text-primary-700 border-t border-l border-r border-primary-200'
-                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-t border-l border-r border-gray-200'
-                }`}
-                onClick={() => setActiveMarkerIndex(index)}
-              >
-                Marcador {index + 1}
-                {marker.markerImage && '✓'}
-              </button>
-            ))}
-          </div>
-        </div>
-        
-        <div className="p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div>
-              <h3 className="text-lg font-medium mb-4">Imagen del Marcador</h3>
-              <div className="border border-dashed border-gray-300 rounded-lg bg-gray-50 p-4 flex flex-col items-center justify-center">
-                {activeMarker.markerImage ? (
-                  <div className="relative w-full">
-                    <img
-                      src={activeMarker.markerImage}
-                      alt={`Marcador ${activeMarkerIndex + 1}`}
-                      className="max-h-80 max-w-full mx-auto rounded-lg"
-                    />
-                    <div className="absolute top-2 right-2 flex space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => handleMarkerImageChange(activeMarkerIndex, '')}
-                        className="bg-white p-1.5 rounded-full shadow-md hover:bg-gray-100"
-                        title="Eliminar imagen"
-                      >
-                        <Trash2 className="h-4 w-4 text-error-600" />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <UploadCloud className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-600 mb-4">Sube una imagen de marcador</p>
-                    <p className="text-xs text-gray-500 mb-4 max-w-xs mx-auto">
-                      Esta imagen activará el contenido RA al ser escaneada. Elige una imagen con detalles claros para mejor reconocimiento.
-                    </p>
-                    <label className="btn-primary cursor-pointer">
-                      <span>Seleccionar Imagen</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleImageUpload(activeMarkerIndex, e)}
-                      />
-                    </label>
-                  </div>
-                )}
-              </div>
-              
-              <div className="mt-4 flex justify-between">
-                <div className="flex">
-                  <button
-                    type="button"
-                    onClick={() => removeMarkerObject(activeMarkerIndex)}
-                    disabled={arClass.markerObjects.length <= 1}
-                    className={`btn-secondary text-sm mr-2 ${
-                      arClass.markerObjects.length <= 1 ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                    title={arClass.markerObjects.length <= 1 ? 'No se puede eliminar el último marcador' : 'Eliminar marcador'}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    Eliminar
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => duplicateMarkerObject(activeMarkerIndex)}
-                    className="btn-secondary text-sm"
-                    title="Duplicar marcador"
-                  >
-                    <Copy className="h-4 w-4 mr-1" />
-                    Duplicar
-                  </button>
+      )}
+      <div className="space-y-4 mb-6">
+        {arClass.markerObjects.map((marker, index) => (
+          <div key={marker.id} className="flex items-center justify-between p-4 border rounded-lg hover:shadow-md">
+            <div className="flex items-center">
+              {marker.markerImage ? (
+                <img src={marker.markerImage} alt={`Marcador ${index + 1}`} className="h-16 w-16 object-cover rounded mr-4" />
+              ) : (
+                <div className="h-16 w-16 bg-gray-200 rounded mr-4 flex items-center justify-center">
+                  <Image className="h-8 w-8 text-gray-400" />
                 </div>
-                
-                {activeMarker.markerImage && (
-                  <label className="btn-secondary text-sm cursor-pointer">
-                    Cambiar Imagen
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handleImageUpload(activeMarkerIndex, e)}
-                    />
-                  </label>
-                )}
+              )}
+              <div>
+                <h3 className="font-semibold">Marcador {index + 1}</h3>
+                <p className="text-sm text-gray-500">{marker.steps.length} paso(s)</p>
               </div>
             </div>
-            
-            <div>
-              <h3 className="text-lg font-medium mb-4">Contenido RA</h3>
-              
-              <div className="space-y-6">
-                {activeMarker.content.map((content, contentIndex) => (
-                  <div key={`${content.type}-${contentIndex}`} className="bg-gray-50 p-4 rounded-lg">
-                    <div className="flex items-center mb-4">
-                      {content.type === 'text' && <FileText className="h-5 w-5 text-gray-600 mr-2" />}
-                      {content.type === 'image' && <Image className="h-5 w-5 text-gray-600 mr-2" />}
-                      {content.type === 'video' && <Video className="h-5 w-5 text-gray-600 mr-2" />}
-                      {content.type === 'url' && <LinkIcon className="h-5 w-5 text-gray-600 mr-2" />}
-                      {content.type === 'audio' && <Music className="h-5 w-5 text-gray-600 mr-2" />}
-                      <h4 className="font-medium capitalize">{content.type}</h4>
-                    </div>
-                    
-                    <div className="mb-4">
-                      <label className="form-label">
-                        Título (Opcional)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder={`Título para el contenido de ${content.type}`}
-                        className="form-input"
-                        value={content.title || ''}
-                        onChange={(e) => handleContentTitleChange(activeMarkerIndex, contentIndex, e.target.value)}
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="form-label">
-                        {content.type === 'text' ? 'Contenido' : 'URL'}
-                      </label>
-                      
-                      {content.type === 'text' ? (
-                        <textarea
-                          placeholder="Ingresa el contenido de texto"
-                          className="form-input"
-                          rows={4}
-                          value={content.value}
-                          onChange={(e) => handleContentValueChange(activeMarkerIndex, contentIndex, e.target.value)}
-                        />
-                      ) : (
-                        <input
-                          type="text"
-                          placeholder={`URL del ${content.type}`}
-                          className="form-input"
-                          value={content.value}
-                          onChange={(e) => handleContentValueChange(activeMarkerIndex, contentIndex, e.target.value)}
-                        />
-                      )}
-                      
-                      {content.type === 'image' && content.value && (
-                        <div className="mt-2">
-                          <img
-                            src={content.value}
-                            alt="Vista previa"
-                            className="max-h-40 rounded-lg"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.src = 'https://placehold.co/400x300?text=URL+inválida';
-                            }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+            <div className="flex items-center space-x-2">
+              <button 
+                type="button" 
+                onClick={() => { setActiveMarkerIndex(index); setActiveStepIndex(0); setCurrentEditorStep('marker-editor'); setError('');}}
+                className="btn-secondary text-sm p-2"
+              >
+                Editar Marcador
+              </button>
+              <button 
+                type="button" 
+                onClick={() => removeMarkerObject(index)} 
+                className="btn-danger-outline text-sm p-2"
+                aria-label="Eliminar Marcador"
+              >
+                <Trash2 className="h-4 w-4"/>
+              </button>
             </div>
           </div>
-        </div>
+        ))}
+      </div>
+      <div className="flex justify-between items-center">
+        <button type="button" onClick={addMarkerObject} className="btn-primary">
+          <Plus className="mr-2 h-4 w-4" /> Añadir Nuevo Marcador
+        </button>
+        <button type="submit" className="btn-success" disabled={isLoading || arClass.markerObjects.length === 0}>
+          {isLoading ? <Loader2 className="animate-spin h-4 w-4 mr-2"/> : <Check className="h-4 w-4 mr-2" />} Guardar Clase y Generar QR
+        </button>
       </div>
     </div>
   );
+
+  // Renderizado del editor de un marcador específico (imagen y lista de pasos)
+  const renderMarkerEditor = () => {
+    if (!activeMarker) return <p>Selecciona un marcador para editar o crea uno nuevo.</p>;
+    return (
+      <div className="max-w-4xl mx-auto bg-white shadow-md rounded-lg p-6 mb-8">
+        <h2 className="text-xl font-bold mb-2">Editando Marcador {activeMarkerIndex + 1}</h2>
+        <p className="text-gray-600 mb-6">Sube la imagen para este marcador y gestiona sus pasos de contenido.</p>
+        {error && (
+          <div className="mb-6 bg-error-50 border border-error-200 text-error-700 px-4 py-3 rounded flex items-start">
+            <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+            <p>{error}</p>
+          </div>
+        )}
+        {/* Sección para la imagen del marcador */}
+        <div className="mb-6">
+          <h3 className="text-lg font-medium mb-2">Imagen del Marcador</h3>
+          <div className="border border-dashed border-gray-300 rounded-lg bg-gray-50 p-4 min-h-[200px] flex flex-col items-center justify-center">
+            {activeMarker.markerImage ? (
+              <div className="relative">
+                <img src={activeMarker.markerImage} alt={`Marcador ${activeMarkerIndex + 1}`} className="max-h-60 max-w-full mx-auto rounded-lg" />
+                <button type="button" onClick={() => handleMarkerImageChange(activeMarkerIndex, '')} className="absolute top-1 right-1 bg-white p-1.5 rounded-full shadow-md hover:bg-gray-100" title="Eliminar imagen">
+                  <Trash2 className="h-4 w-4 text-error-600" />
+                </button>
+              </div>
+            ) : (
+              <div className="text-center">
+                <UploadCloud className="h-10 w-10 text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-600 mb-2">Sube una imagen de marcador</p>
+                <input id={`marker-img-upload-${activeMarker.id}`} type="file" accept="image/*" onChange={(e) => handleImageUpload(activeMarkerIndex, e)} className="hidden" />
+                <label htmlFor={`marker-img-upload-${activeMarker.id}`} className="btn-secondary text-sm cursor-pointer">Seleccionar Imagen</label>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Sección para la lista de pasos del marcador */}
+        <div className="mb-6">
+          <h3 className="text-lg font-medium mb-2">Pasos de Contenido para este Marcador</h3>
+          {activeMarker.steps.map((step, stepIdx) => (
+            <div key={step.id} className="flex items-center justify-between p-3 mb-2 border rounded-lg hover:shadow">
+              <p>Paso {stepIdx + 1} ({step.contents.length} contenido(s))</p>
+              <div className="flex items-center space-x-2">
+                <button type="button" onClick={() => { setActiveStepIndex(stepIdx); setCurrentEditorStep('step-editor'); setError(''); }} className="btn-secondary text-sm p-1.5">
+                  Editar Paso
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => removeStepFromMarker(activeMarkerIndex, stepIdx)} 
+                  className="btn-danger-outline text-sm p-1.5"
+                  aria-label="Eliminar Paso"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+          <button type="button" onClick={() => addStepToMarker(activeMarkerIndex)} className="btn-primary text-sm mt-2">
+            <Plus className="mr-1 h-4 w-4" /> Añadir Nuevo Paso
+          </button>
+        </div>
+        <div className="flex justify-end">
+            <button type="button" onClick={() => setCurrentEditorStep('marker-list')} className="btn-secondary">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Volver a Lista de Marcadores
+            </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Renderizado del editor de un paso específico (lista de contenidos)
+  const renderStepEditor = () => {
+    if (!activeMarker || !activeStep) return <p>Selecciona un marcador y un paso para editar.</p>;
+    return (
+      <div className="max-w-3xl mx-auto bg-white shadow-md rounded-lg p-6 mb-8">
+        <h2 className="text-xl font-bold mb-2">Editando Paso {activeStepIndex + 1} (Marcador {activeMarkerIndex + 1})</h2>
+        <p className="text-gray-600 mb-6">Añade y configura los bloques de contenido para este paso.</p>
+        {error && (
+          <div className="mb-6 bg-error-50 border border-error-200 text-error-700 px-4 py-3 rounded flex items-start">
+            <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+            <p>{error}</p>
+          </div>
+        )}
+        {/* Lista de contenidos del paso activo */}
+        <div className="space-y-4 mb-6">
+          {activeStep.contents.map((content, contentIdx) => (
+            <div key={content.id} className="p-4 border rounded-lg bg-gray-50">
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="font-semibold capitalize flex items-center">
+                  {contentTypesMeta.find(ctm => ctm.type === content.type)?.icon && 
+                    React.createElement(contentTypesMeta.find(ctm => ctm.type === content.type)!.icon, { className: 'h-5 w-5 mr-2 text-gray-600' })}
+                  Editando: {contentTypesMeta.find(ctm => ctm.type === content.type)?.label || content.type}
+                </h4>
+                <button 
+                  type="button" 
+                  onClick={() => removeContentFromStep(activeMarkerIndex, activeStepIndex, contentIdx)} 
+                  className="text-error-500 hover:text-error-700"
+                  aria-label="Eliminar Contenido"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+              
+              <div className="mb-2">
+                <label htmlFor={`content-title-${content.id}`} className="form-label text-sm">Título (Opcional)</label>
+                <input 
+                  id={`content-title-${content.id}`} 
+                  type="text" 
+                  value={content.title || ''} 
+                  onChange={(e) => updateContentInStep(activeMarkerIndex, activeStepIndex, contentIdx, { title: e.target.value })}
+                  className="form-input text-sm"
+                  placeholder="Ej: Información Principal"
+                />
+              </div>
+
+              <div className="mb-2">
+                <label htmlFor={`content-value-${content.id}`} className="form-label text-sm">
+                  {content.type === 'text' ? 'Texto' : content.type === 'button' ? 'Texto del Botón' : 'URL o Valor'}
+                </label>
+                {content.type === 'text' ? (
+                  <textarea 
+                    id={`content-value-${content.id}`} 
+                    rows={3} 
+                    value={content.value} 
+                    onChange={(e) => updateContentInStep(activeMarkerIndex, activeStepIndex, contentIdx, { value: e.target.value })}
+                    className="form-input text-sm"
+                    placeholder="Escribe tu texto aquí..."
+                  />
+                ) : (
+                  <input 
+                    id={`content-value-${content.id}`} 
+                    type={content.type === 'url' || content.type === 'image' || content.type === 'video' || content.type === 'audio' ? 'url' : 'text'} 
+                    value={content.value} 
+                    onChange={(e) => updateContentInStep(activeMarkerIndex, activeStepIndex, contentIdx, { value: e.target.value })}
+                    className="form-input text-sm"
+                    placeholder={content.type === 'button' ? 'Ej: Continuar' : `Pega la URL para ${content.type}`}
+                  />
+                )}
+              </div>
+
+              {/* Campos adicionales para botones */}
+              {content.type === 'button' && (
+                <div className="mt-2">
+                  <label htmlFor={`content-action-${content.id}`} className="form-label text-sm">Acción del Botón</label>
+                  <select 
+                    id={`content-action-${content.id}`} 
+                    value={content.action || ''} 
+                    onChange={(e) => updateContentInStep(activeMarkerIndex, activeStepIndex, contentIdx, { action: e.target.value as ButtonAction })}
+                    className="form-input text-sm"
+                  >
+                    <option value="">Seleccionar Acción</option>
+                    <option value="nextStep">Siguiente Paso</option>
+                    <option value="prevStep">Paso Anterior</option>
+                    <option value="openUrl">Abrir URL</option>
+                    {/* <option value="custom">Acción Personalizada</option> */}
+                  </select>
+                  {(content.action === 'openUrl') && (
+                    <div className="mt-1">
+                      <label htmlFor={`content-actionValue-${content.id}`} className="form-label text-xs">URL para Abrir</label>
+                      <input 
+                        id={`content-actionValue-${content.id}`} 
+                        type="url" 
+                        value={content.actionValue || ''} 
+                        onChange={(e) => updateContentInStep(activeMarkerIndex, activeStepIndex, contentIdx, { actionValue: e.target.value })}
+                        className="form-input text-xs"
+                        placeholder="https://ejemplo.com"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Vista previa para imágenes */}
+              {content.type === 'image' && content.value && (
+                <div className="mt-2 p-2 border rounded">
+                  <img src={content.value} alt={content.title || 'Vista previa'} className="max-h-32 rounded" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="mb-4">
+            <p className="text-sm font-medium mb-2">Añadir Nuevo Contenido a este Paso:</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {contentTypesMeta.map(ctm => (
+                    <button 
+                        key={ctm.type} 
+                        type="button" 
+                        onClick={() => addContentToStep(activeMarkerIndex, activeStepIndex, ctm.type)}
+                        className="btn-outline text-sm p-2 flex flex-col items-center justify-center h-full"
+                    >
+                        <ctm.icon className="h-5 w-5 mb-1" />
+                        {ctm.label}
+                    </button>
+                ))}
+            </div>
+        </div>
+        <div className="flex justify-end">
+            <button type="button" onClick={() => setCurrentEditorStep('marker-editor')} className="btn-secondary">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Marcador
+            </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="bg-gray-50 min-h-screen pt-16">
@@ -639,29 +647,33 @@ const ClassEditorPage = () => {
             Volver a Mis Clases
           </button>
           
-          {currentStep !== 'type-selection' && (
-            <button
-              onClick={handleBack}
-              className="ml-4 inline-flex items-center text-gray-600 hover:text-gray-900"
-            >
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Paso Anterior
-            </button>
+          {/* Botón de Volver General entre pasos del editor */}
+          {currentEditorStep === 'marker-list' && (
+             <button onClick={() => setCurrentEditorStep('class-details')} className="ml-4 btn-secondary text-sm"><ArrowLeft className="mr-1 h-4 w-4"/>Detalles de Clase</button>
+          )}
+          {currentEditorStep === 'marker-editor' && (
+             <button onClick={() => setCurrentEditorStep('marker-list')} className="ml-4 btn-secondary text-sm"><ArrowLeft className="mr-1 h-4 w-4"/>Lista de Marcadores</button>
+          )}
+           {currentEditorStep === 'step-editor' && (
+             <button onClick={() => setCurrentEditorStep('marker-editor')} className="ml-4 btn-secondary text-sm"><ArrowLeft className="mr-1 h-4 w-4"/>Editor de Marcador</button>
           )}
         </div>
         
         <form onSubmit={handleSubmit(onSubmit)}>
-          {currentStep === 'type-selection' && renderTypeSelection()}
-          {currentStep === 'content-creation' && renderContentCreation()}
+          {currentEditorStep === 'class-details' && renderClassDetailsForm()}
+          {currentEditorStep === 'marker-list' && renderMarkerList()}
+          {currentEditorStep === 'marker-editor' && renderMarkerEditor()}
+          {currentEditorStep === 'step-editor' && renderStepEditor()}
         </form>
       </div>
       
-      {currentStep === 'content-creation' && (
+      {/* El botón flotante de guardar solo aparece si no estamos en detalles de clase y hay marcadores */}
+      {currentEditorStep !== 'class-details' && arClass.markerObjects.length > 0 && (
         <FloatingSubmitButton 
           onClick={handleSubmit(onSubmit)}
           isLoading={isLoading}
           showSuccess={saveSuccess}
-          label="Guardar y Generar QR"
+          label="Guardar Clase y Generar QR"
         />
       )}
       
@@ -675,4 +687,5 @@ const ClassEditorPage = () => {
   );
 };
 
+// No olvides exportar ClassEditorPage si es necesario en tu App.tsx o router
 export default ClassEditorPage;
