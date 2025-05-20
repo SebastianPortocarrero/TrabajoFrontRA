@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "n8n-lastchance",
+  "private_key_id": "fa9bd0f396d49e7faa5872facaae608670278ad8",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCt0W8rh1JdJZ0R\nhxjwbxh5k4Fr7ooI8CiiImRmh6Be6DCmFJX0um0nPpoZXiK8zTDZGx6g8rOUR0E7\nFCNxKrO0fXy6M3MPcDFH5ll4GteIK58XEpWlwZqtL8xEkDxXqySwKTHgNvSlNfWU\nhGUkPNIL8IBBFRfHf2Q41u/iP/WvOi+o8Zvp/Rlmw8e0+uY2pgCwXqKdrnY8v3my\npA+QQSgFbhQwncOYfX1unYTqqR2RCoGJwUUi9/WZ70P1pb6W6e237e7lgOW9gVGK\nQv68gtj2qLiDsyf+VcibBxXE93F4QUCYQznNnOMh929HwrSixelk2Bzdw3JrFDsZ\nOWAaCnG9AgMBAAECggEAIs2Ryx8uDnEK1Vjd1TyFY8h1bElHsbj2hdpJjJ8A7Sfk\nH8j06prOYsJ94/DtlyylqH7t38+gxeKLjNsAKrdgYpYSvIyzL+bosysMBIipWb5U\nPTAvLxCIGj+9EIhp0Kr3rl8dObX/P7pBaSKmRr5310SpRX7F81/OTzQ4NW7VkGdL\na8KRCkMwTk2j614I1en7jwmI3yv6WOuakwzpY/T2k9a1Uu0xAUzzI18Jj0ymUc7R\n08Kej8yFrMkr0r60diCx6STh+ikdp0pWt3bg58wvtnD0Uq/KItLD4MQllh0dhg0I\nyJegB7NTJ7eh2B16U8AbIe9ZocM+BszVFdK8KpboaQKBgQDU7vi0DgKYnP1juZs6\ntjr9c07rozUsIcgJ4czaUvtJRIFh7ZvgroqBq0o9ot0So71D2y5n3/Yre3CkC4ZF\nax3MdSfrs3JiCvgxaiOAKygx3mdeHmrcPeJSFJaJNGt/rDupD7du4ltd0nNW0y9z\nWyCDX4wM5wJGNOdT8Zj7619WFQKBgQDQ+TDip10TOMWIXuOl8U88yguOZ94indU2\npt9dIzPD5068IW6txtvGJDtqY8sEIkK6WMeZpooc7Z0DL9yVTR2N4mYfxnBu2CJc\nzAX9Nz7uMTfuGClm+CLWt8HtoXY2v2xBbvjERlS5oyyRYEtbM+KKohSQMX+Izz6d\nRZD9Qwx/CQKBgF4shtBTdfB7VlIZz76qw/I+YkQzPZwUIL3GIOzaUIr6AmMGTK+V\nYmqxEDesZSwOQPHW6XJFikF26b2T30Gqe1Zm5k4HYmpcQaLRN3xDGhbcL0lgGJDp\nycPVmTJ7faPMz+IYsl8XO6OGJT7cThstzXZs9qrqLIZSdZEZxDh+w/51AoGASglv\nY23uUOgVO/p6Zwl2jE/9BigQkG0g5Cr9Ce914JtrzsV9g/3nUWz2y/utKrrEr2bS\n2MIjPpqEvWNQoGjg5qrmia1xmiPjEMOL/6l6F0PC0A0pZfzVwwL5pypESqNJRGl/\no3JThC2mlZ7rM9XPFlTUOj3/NEZQpcHG26PMopkCgYEAz6hWsOutJh+q50Zt+yxg\n2roG0mNkHVD92xN6rvArqySVn8MP6u/qYpoti7K4Y8t9u5TLUQz+5vOXLUSK6p2O\nV2Um829+C6dmf4pPI2vQrQx2FnQxBV9slfC5ZyMh/yAHvM+GdRCUCncHId9tUBT+\nfcCad/cBNh1xpZwbX0lHORw=\n-----END PRIVATE KEY-----\n",
+  "client_email": "doki99263@n8n-lastchance.iam.gserviceaccount.com",
+  "client_id": "104691667880498801874",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/doki99263%40n8n-lastchance.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

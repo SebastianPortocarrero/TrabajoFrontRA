@@ -11,6 +11,8 @@ import { getClassById, saveClass } from '../utils/storage';
 import { ARClass, MarkerObject, ARStep, ARContent, ContentType, ButtonAction } from '../types';
 import FloatingSubmitButton from '../components/FloatingSubmitButton';
 import QRCodeModal from '../components/QRCodeModal';
+import ImageUploader from '../components/ImageUploader';
+import { uploadImageToDrive, base64ToFile } from '../utils/api';
 
 interface FormData {
   title: string;
@@ -156,36 +158,29 @@ const ClassEditorPage = () => {
     }
   };
     
-  const handleMarkerImageChange = (markerIdx: number, imageDataUrl: string) => {
-    setArClass(prev => {
-      const updatedMarkers = [...prev.markerObjects];
-      updatedMarkers[markerIdx] = {
-        ...updatedMarkers[markerIdx],
-        markerImage: imageDataUrl,
-      };
-      // Si es el primer marcador y no hay thumbnail, usar esta imagen
-      if (markerIdx === 0 && !prev.thumbnail) {
+  const handleMarkerImageChange = (markerIdx: number, imageUrl: string) => {
+    // Si la URL está vacía (botón eliminar) o tiene un valor, actualizar la imagen
+    // Esto evita que se pierda la imagen actual si hay algún error al subir
+    if (imageUrl !== undefined) {
+      setArClass(prev => {
+        const updatedMarkers = [...prev.markerObjects];
+        updatedMarkers[markerIdx] = {
+          ...updatedMarkers[markerIdx],
+          markerImage: imageUrl,
+        };
+        // Si es el primer marcador y no hay thumbnail, usar esta imagen
+        if (markerIdx === 0 && !prev.thumbnail) {
+          return {
+            ...prev,
+            markerObjects: updatedMarkers,
+            thumbnail: imageUrl,
+          };
+        }
         return {
           ...prev,
           markerObjects: updatedMarkers,
-          thumbnail: imageDataUrl,
         };
-      }
-      return {
-        ...prev,
-        markerObjects: updatedMarkers,
-      };
-    });
-  };
-
-  const handleImageUpload = (markerIdx: number, event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        handleMarkerImageChange(markerIdx, reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      });
     }
   };
 
@@ -283,7 +278,7 @@ const ClassEditorPage = () => {
   };
   
   // ----- Submit ----- 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = async (data: FormData) => {
     setError('');
     if (!arClass.markerObjects.some(marker => marker.markerImage)) {
       setError('Al menos un marcador debe tener una imagen asignada.');
@@ -314,6 +309,7 @@ const ClassEditorPage = () => {
         throw new Error('Usuario no autenticado o ID de usuario faltante.');
       }
       
+      // Creamos una copia de la clase para trabajar con ella
       const classToSave: ARClass = {
         ...arClass,
         title: data.title,
@@ -323,10 +319,85 @@ const ClassEditorPage = () => {
         markerObjects: arClass.markerObjects.filter(marker => marker.markerImage),
       };
       
-      saveClass(user.id, classToSave);
-      setArClass(classToSave); // Actualizar estado local con la clase guardada (incluyendo IDs generados si es el caso)
-      setSaveSuccess(true);
+      // Procesar todas las imágenes base64 y subirlas a Google Drive
+      const updatedMarkers = await Promise.all(
+        classToSave.markerObjects.map(async (marker, markerIdx) => {
+          if (marker.markerImage && marker.markerImage.startsWith('data:image')) {
+            try {
+              // Subir la imagen del marcador a Drive
+              const markerFile = base64ToFile(
+                marker.markerImage, 
+                `marker_${marker.id}_${Date.now()}.png`
+              );
+              const { url: markerUrl } = await uploadImageToDrive(markerFile);
+              
+              // Procesar las imágenes en los contenidos de los pasos
+              const updatedSteps = await Promise.all(
+                marker.steps.map(async (step) => {
+                  const updatedContents = await Promise.all(
+                    step.contents.map(async (content) => {
+                      // Solo procesar los contenidos tipo "image" con datos base64
+                      if (content.type === 'image' && content.value && content.value.startsWith('data:image')) {
+                        try {
+                          const contentFile = base64ToFile(
+                            content.value,
+                            `content_${content.id}_${Date.now()}.png`
+                          );
+                          const { url: contentUrl } = await uploadImageToDrive(contentFile);
+                          return { ...content, value: contentUrl };
+                        } catch (err) {
+                          console.error('Error subiendo contenido de imagen:', err);
+                          return content;
+                        }
+                      }
+                      return content;
+                    })
+                  );
+                  return { ...step, contents: updatedContents };
+                })
+              );
+              
+              return { 
+                ...marker, 
+                markerImage: markerUrl,
+                steps: updatedSteps
+              };
+            } catch (err) {
+              console.error('Error subiendo imagen de marcador:', err);
+              return marker;
+            }
+          }
+          return marker;
+        })
+      );
       
+      // Actualizar la miniatura también si es base64
+      let updatedThumbnail = classToSave.thumbnail;
+      if (classToSave.thumbnail && classToSave.thumbnail.startsWith('data:image')) {
+        try {
+          const thumbnailFile = base64ToFile(
+            classToSave.thumbnail,
+            `thumbnail_${classToSave.id}_${Date.now()}.png`
+          );
+          const { url } = await uploadImageToDrive(thumbnailFile);
+          updatedThumbnail = url;
+        } catch (err) {
+          console.error('Error subiendo thumbnail:', err);
+        }
+      }
+      
+      // Crear la clase final con todas las URLs de Drive
+      const finalClassToSave = {
+        ...classToSave,
+        thumbnail: updatedThumbnail,
+        markerObjects: updatedMarkers
+      };
+      
+      // Guardar la clase en el almacenamiento
+      saveClass(user.id, finalClassToSave);
+      setArClass(finalClassToSave); // Actualizar estado local con la clase guardada (incluyendo IDs generados si es el caso)
+      
+      setSaveSuccess(true);
       setTimeout(() => {
         setSaveSuccess(false);
         setShowQRModal(true);
@@ -456,11 +527,12 @@ const ClassEditorPage = () => {
                 </button>
               </div>
             ) : (
-              <div className="text-center">
+              <div className="flex flex-col items-center justify-center py-12 rounded-lg border-2 border-dashed border-gray-300 bg-white">
                 <UploadCloud className="h-10 w-10 text-gray-400 mx-auto mb-2" />
                 <p className="text-gray-600 mb-2">Sube una imagen de marcador</p>
-                <input id={`marker-img-upload-${activeMarker.id}`} type="file" accept="image/*" onChange={(e) => handleImageUpload(activeMarkerIndex, e)} className="hidden" />
-                <label htmlFor={`marker-img-upload-${activeMarker.id}`} className="btn-secondary text-sm cursor-pointer">Seleccionar Imagen</label>
+                <ImageUploader 
+                  onImageUploaded={(imageUrl: string) => handleMarkerImageChange(activeMarkerIndex, imageUrl)}
+                />
               </div>
             )}
           </div>
@@ -557,10 +629,25 @@ const ClassEditorPage = () => {
                     className="form-input text-sm"
                     placeholder="Escribe tu texto aquí..."
                   />
+                ) : content.type === 'image' ? (
+                  <div>
+                    <ImageUploader 
+                      onImageUploaded={(imageUrl: string) => 
+                        updateContentInStep(activeMarkerIndex, activeStepIndex, contentIdx, { value: imageUrl })
+                      }
+                      label="Seleccionar imagen"
+                      className="mb-2"
+                    />
+                    {content.value && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Imagen subida a Google Drive
+                      </p>
+                    )}
+                  </div>
                 ) : (
                   <input 
                     id={`content-value-${content.id}`} 
-                    type={content.type === 'url' || content.type === 'image' || content.type === 'video' || content.type === 'audio' ? 'url' : 'text'} 
+                    type={content.type === 'url' || content.type === 'video' || content.type === 'audio' ? 'url' : 'text'} 
                     value={content.value} 
                     onChange={(e) => updateContentInStep(activeMarkerIndex, activeStepIndex, contentIdx, { value: e.target.value })}
                     className="form-input text-sm"
@@ -604,7 +691,18 @@ const ClassEditorPage = () => {
               {/* Vista previa para imágenes */}
               {content.type === 'image' && content.value && (
                 <div className="mt-2 p-2 border rounded">
-                  <img src={content.value} alt={content.title || 'Vista previa'} className="max-h-32 rounded" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                  <img 
+                    src={content.value} 
+                    alt={content.title || 'Vista previa'} 
+                    className="max-h-32 rounded object-contain mx-auto" 
+                    onError={(e) => {
+                      console.error('Error loading image:', content.value);
+                      e.currentTarget.style.display = 'none';
+                    }} 
+                  />
+                  <p className="text-xs text-center text-gray-500 mt-1 truncate">
+                    {content.value.startsWith('https://drive.google.com') ? 'Imagen desde Google Drive' : content.value}
+                  </p>
                 </div>
               )}
             </div>
