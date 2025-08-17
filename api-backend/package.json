@@ -1,20 +1,54 @@
 {
-  "name": "api-backend",
-  "version": "1.0.0",
-  "main": "index.js",
+  "name": "ar-backend",
+  "version": "3.0.0",
+  "description": "Modular Backend for AR Education Platform with Better Auth",
+  "main": "dist/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "auth:generate": "npx @better-auth/cli generate --config src/config/auth.ts --yes",
+    "auth:schema:push": "drizzle-kit push --config=drizzle-better-auth.config.ts",
+    "test": "echo \"No tests specified\" && exit 0"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
+    "better-auth": "^1.3.6",
     "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
-    "express": "^5.1.0",
-    "firebase-admin": "^13.4.0",
-    "googleapis": "^148.0.0",
-    "multer": "^2.0.0"
-  }
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.36.4",
+    "express": "^4.18.2",
+    "express-validator": "^7.0.1",
+    "google-auth-library": "^9.0.0",
+    "googleapis": "^126.0.1",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.16.3",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@better-auth/cli": "^1.3.6",
+    "@types/cors": "^2.8.14",
+    "@types/express": "^4.17.17",
+    "@types/multer": "^1.4.7",
+    "@types/node": "^24.2.1",
+    "@types/pg": "^8.11.6",
+    "drizzle-kit": "^0.31.4",
+    "nodemon": "^3.0.2",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "ar",
+    "education",
+    "backend",
+    "google-drive",
+    "postgresql",
+    "better-auth"
+  ]
 }
