@@ -25,7 +25,7 @@ Update `api-backend/auth/.env` with your actual values:
 CONNECTION_STRING=postgresql://neondb_owner:npg_LrSC4wa3ZMUb@ep-billowing-math-ac5l083h-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
 
 # Better Auth Secret (already set)
-BETTER_AUTH_SECRET=x014VuQvb7neTaoqId5psBIwUChTQ0v9
+BETTER_AUTH_SECRET=your-super-secret-key-here
 BETTER_AUTH_URL=http://localhost:3002
 
 # Frontend URL
