@@ -332,7 +332,21 @@ curl -X POST http://localhost:3002/api/system/initialize
 
 **"Drive permission denied"**
 - Verificar service account permisos
-- Comprobar `google-drive-key.json`
+- Comprobar `google-drive-key.json` (ver configuración abajo)
+
+### Configuración de Google Drive
+
+1. **Crear Service Account** en Google Cloud Console
+2. **Descargar** el archivo JSON de credenciales
+3. **Renombrar** a `google-drive-key.json`
+4. **Colocar** en la carpeta `api-backend/`
+
+```bash
+# El archivo debe estar en:
+api-backend/google-drive-key.json
+```
+
+**⚠️ IMPORTANTE**: El archivo `google-drive-key.json` está en `.gitignore` y NO debe subirse a Git.
 
 ## 🎯 Roadmap
 
